@@ -14,6 +14,13 @@
 (setf (gethash :in conversions) 0.0254)
 (setf (gethash :ft conversions) 0.3048)
 
+(defun get-conversion (unit)
+  (let ((conv (gethash unit conversions)))
+    (if conv
+	conv
+	(progn (format t "Bad unit was entered '~s'. Use one of :m :cm :in :ft. Defaulting to meters.~%" unit)
+	       1))))
+
 (defun interpolate (x1 y1 x2 y2 xm)
   "Linearly interpolates between point 1 (x1, y1) and point 2 (xy, y2) for some x value xm"
   (let ((slope (/ (- y2 y1) (- x2 x1))))
@@ -34,9 +41,7 @@
 (defun first-blur (distance &optional (unit :in) &rest trash)
   "Return the diopter value if distance is the first time blur is observed"
   (declare (ignore trash))
-  (unless (gethash unit conversions)
-    (error "Unit not found, try ':~s'?" unit))
-  (/ 1 (gethash unit conversions 1) distance))
+  (/ 1 (get-conversion unit) distance))
 
 
 (defun acuity->diopters (read-distance &optional (read-size-20/x 20) (chart-distance 14) (lenses 0) (unit :in) &rest trash)
@@ -53,13 +58,13 @@
 (defun proper-distance (full-prescription &optional (lenses 0) (unit :m) &rest trash)
   "Returns the max viewing distance for clear vision given a full-prescription and current worn lenses"
   (declare (ignore trash))
-  (list (/ 1 (- full-prescription lenses) (gethash unit conversions)) unit))
+  (list (/ 1 (- full-prescription lenses) (get-conversion unit)) unit))
 
 
 (defun proper-lens (full-prescription &optional (distance 1) (unit :m) &rest trash)
   "Returns the proper diopter value lens that should be worn to clearly see something distance away"
   (declare (ignore trash))
-  (- full-prescription (/ 1 (gethash unit conversions) distance)))
+  (- full-prescription (/ 1 (get-conversion unit) distance)))
 
 
 (defun correction-delta (full-prescription &optional (lenses 0) (distance 1) (unit :m) &rest trash)
@@ -78,7 +83,7 @@
 (defun convert-units (distance &optional (unit-from :m) (unit-to :in) &rest trash)
   "Converts between units using the conversions hash table. Does meters, inches, feet, and centimeters."
   (declare (ignore trash))
-  (list (/ (* distance (gethash unit-from conversions)) (gethash unit-to conversions)) unit-to))
+  (list (/ (* distance (get-conversion unit-from)) (get-conversion unit-to)) unit-to))
 
 
 
