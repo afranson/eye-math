@@ -2,6 +2,8 @@
 
 Lisp package to define some useful functions for performing simple optical calculations such as determining your prescription based on how far away you can read 20/20 or based on when you observe first blur as well as utilities to tell you how far away your glasses are good for.
 
+Designed and implemented during my EndMyopia journey to trivialize the calculations.
+
 ## Install
 
 Not a part of quicklisp. If using quicklisp, add to you quicklisp/local-projects directory, ```cd /path/to/quicklisp/local-projects/; git clone https://github.com/afranson/eye-math```, then use ```(ql:quickload :eye-math)``` inside a repl (slime, sly, command line), then run ```(em:eye-diagnostics)```, read the information, provided, then use to your heart's content.
