@@ -96,7 +96,7 @@
 (defparameter function-info (make-hash-table) "Hash table relating function names to their information and formats")
 (mapcar #'(lambda (x) (setf (gethash x function-info) (elt methods (- x 1)))) '(1 2 3 4 5 6 7))
 
-(defparameter method-strings (mapcar #'(lambda (x) (format nil "~{~16a~^ ~}" (elt (gethash x function-info) 1))) '(1 2 3 4 5 6 7)))
+(defparameter method-strings (mapcar #'(lambda (x) (format nil "~{~17a~^ ~}" (elt (gethash x function-info) 1))) '(1 2 3 4 5 6 7)))
 (defparameter methods-str (format nil "~{~a~^~%~}~%" (loop for l in method-strings
                                                            for y from 1
                                                            collect (format nil "~a: ~a" y l))))
