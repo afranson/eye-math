@@ -25,10 +25,6 @@ exec ros -Q -- $0 "$@"
         :eye-math))
 (in-package :ros.script.eyes.3873029596)
 
-;; (load (merge-pathnames "eye-functionality.lisp" *load-truename*))
-;; (load "/home/aj/Desktop/Eye_Improvement/eye-functionality.lisp")
-;; (load "./eye-functionality.lisp")
-
 (defun main (&rest argv)
   (apply #'eye-diagnostics argv))
 
