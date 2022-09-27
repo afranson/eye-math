@@ -6,7 +6,7 @@ Designed and implemented during my EndMyopia journey to trivialize the calculati
 
 ## Install
 
-Not a part of quicklisp. If using quicklisp, add to you quicklisp/local-projects directory, ```cd /path/to/quicklisp/local-projects/; git clone https://github.com/afranson/eye-math```, then use ```(ql:quickload :eye-math)``` inside a repl (slime, sly, command line), then run ```(em:eye-diagnostics)```, read the information provided, then use to your heart's content.
+Not a part of quicklisp. If using quicklisp, add to you quicklisp/local-projects directory, ```cd /path/to/quicklisp/local-projects/; git clone https://github.com/afranson/eye-math.git```, then use ```(ql:quickload :eye-math)``` inside a repl (slime, sly, command line), then run ```(em:eye-diagnostics)```, read the information provided, then use to your heart's content.
 
 I use this functionality inside a basic roswell script like,
 ```
