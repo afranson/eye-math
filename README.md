@@ -35,8 +35,9 @@ Alternatively, you can build the package as an executable with a compatible Lisp
 ```
 > sbcl
 > (asdf:load-system :eye-math)
-> (sb-ext:save-lisp-and-die "exec-name" :toplevel #'eye-matheye-diagnostics-exec :executable T :compression T)  # SBCL version
+> (sb-ext:save-lisp-and-die "exec-name" :toplevel #'eye-math:eye-diagnostics-exec :executable T :compression T)  # SBCL version
 ```
+Then move the executable to a place in your PATH or alias to it and run.
 
 ## License
 
