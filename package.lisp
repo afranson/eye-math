@@ -10,4 +10,5 @@
 	   #:proper-lens
 	   #:correction-delta
 	   #:convert-units
-	   #:eye-diagnostics))
+	   #:eye-diagnostics
+	   #:eye-diagnostics-exec))
