@@ -5,9 +5,9 @@
   (:use #:cl)
   (:export #:first-blur
            #:acuity->diopters
-           #:get-astigmatism
-	   #:view-distance
+           #:get-astig-tot-sph
 	   #:proper-distance
 	   #:proper-lens
 	   #:correction-delta
-	   #:convert-units))
+	   #:convert-units
+	   #:eye-diagnostics))
