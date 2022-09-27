@@ -15,12 +15,14 @@
 (setf (gethash :ft conversions) 0.3048)
 
 (defun check-for-num (arg)
+  "Checks if arg is a number, otherwise print helpful message and gives safe default"
   (if (numberp arg)
       arg
       (progn (format t "Invalid entry, '~a' should be a number. Defaulting to 1.~%" arg)
 	     1)))
 
 (defun get-conversion (unit)
+  "Checks if unit is in the conversions hash table and prints helpful message if it is not with safe default returned"
   (let ((conv (gethash unit conversions)))
     (if conv
 	conv
@@ -44,6 +46,9 @@
    list))
 
 
+;; Put around function (like python decorator, but better) - e.g. (with-num-protection (defun ...))
+;; Searches function body for occurance of any element in var-names and replaces it with
+;; (check-for-num element) so if the argument is not a number, function fails gracefully
 (defmacro with-num-protection ((&rest var-names) &body body)
   (labels ((map-tree (f tree)
 	     (when tree
@@ -131,22 +136,27 @@
                                                            collect (format nil "~a: ~a" y l))))
 
 (defun read-from-string-iff-string (input)
+  "Read value in string with parser if and only if it is a string"
   (if (stringp input)
       (read-from-string input)
       input))
 
 (defun force-list (input)
+  "Returns a list, no exceptions"
   (if (consp input)
       input
       (list input)))
 
 (defun get-func-from-hash (inputs)
+  "Extract the function from the function-info hash table (specified by 0th element of inputs)"
   (elt (elt (gethash (elt inputs 0) function-info) 0) 0))
 
 (defun get-format-from-hash (inputs)
+  "Extract the format for printing the result of the function in the function-info hash table (specified by 0th element of inputs)"
   (elt (elt (gethash (elt inputs 0) function-info) 2) 0))
 
 (defun apply-hash-func-to-inputs (inputs)
+  "Get result of the function in hash table applied to the inputs (1st to last)"
   (apply (get-func-from-hash inputs) (subseq inputs 1)))
 
 (defun eye-diagnostics (&rest argv)
