@@ -53,7 +53,7 @@
 (defun proper-distance (full-prescription &optional (lenses 0) (unit :m) &rest trash)
   "Returns the max viewing distance for clear vision given a full-prescription and current worn lenses"
   (declare (ignore trash))
-  (/ 1 (- full-prescription lenses) (gethash unit conversions)))
+  (list (/ 1 (- full-prescription lenses) (gethash unit conversions)) unit))
 
 
 (defun proper-lens (full-prescription &optional (distance 1) (unit :m) &rest trash)
@@ -78,24 +78,25 @@
 (defun convert-units (distance &optional (unit-from :m) (unit-to :in) &rest trash)
   "Converts between units using the conversions hash table. Does meters, inches, feet, and centimeters."
   (declare (ignore trash))
-  (/ (* distance (gethash unit-from conversions)) (gethash unit-to conversions)))
+  (list (/ (* distance (gethash unit-from conversions)) (gethash unit-to conversions)) unit-to))
 
 
 
 ;;; CLI Strings, Utilities, and Main function
-(defparameter function-info (make-hash-table) "Hash table relating function names to their information")
-(setf (gethash 1 function-info) '( "acuity->diopters" "read-dist" "read-size-20/x" "chart-dist" "lenses" "unit"))
-
-
 (defparameter methods
-  '(( "acuity->diopters" "read-dist" "read-size-20/x" "chart-dist" "lenses" "unit" )
-    ( "first-blur" "distance" "unit")
-    ( "astigmatism" "first-blur-ast" "acuity-read-dist")
-    ( "proper-distance" "full-prescr" "lenses" "unit" )
-    ( "proper-lens" "full-prescr" "dist" "unit" )
-    ( "correction-delta" "full-prescr" "lenses" "dist" "unit" )
-    ( "convert-units" "distance" "unit-from" "unit-to")))
-(defparameter method-strings (mapcar #'(lambda (x) (format nil "~{~16a~^ ~}" x)) methods))
+  `(( (,#'acuity->diopters) ("acuity->diopters" "read-dist" "read-size-20/x" "chart-dist" "lenses" "unit" ) (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
+    ( (,#'first-blur) ("first-blur" "distance" "unit") (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
+    ( (,#'get-astig-tot-sph) ("get-astig-tot-sph" "first-blur-ast" "acuity-read-dist") (,(lambda (x y z) (format t "Astigmatism: ~4,2f  Total: ~4,2f  Spherical: ~4,2f Diopters~%" x y z))))
+    ( (,#'proper-distance) ("proper-distance" "full-prescr" "lenses" "unit" ) (,(lambda (x y) (format t "Proper Viewing Distance: ~a ~a~%" x y))))
+    ( (,#'proper-lens) ("proper-lens" "full-prescr" "dist" "unit" ) (,(lambda (x) (format t "Proper Lenses: ~a Diopters~%" x))))
+    ( (,#'correction-delta) ("correction-delta" "full-prescr" "lenses" "dist" "unit" ) (,(lambda (x) (format t "Correction Delta: ~a Diopters~%" x))))
+    ( (,#'convert-units) ("convert-units" "distance" "unit-from" "unit-to") (,(lambda (x y) (format t "Converted Distance: ~a ~a~%" x y)))))
+  "List that couples the functions to their parameters to their printing format")
+
+(defparameter function-info (make-hash-table) "Hash table relating function names to their information and formats")
+(mapcar #'(lambda (x) (setf (gethash x function-info) (elt methods (- x 1)))) '(1 2 3 4 5 6 7))
+
+(defparameter method-strings (mapcar #'(lambda (x) (format nil "~{~16a~^ ~}" (elt (gethash x function-info) 1))) '(1 2 3 4 5 6 7)))
 (defparameter methods-str (format nil "~{~a~^~%~}~%" (loop for l in method-strings
                                                            for y from 1
                                                            collect (format nil "~a: ~a" y l))))
@@ -105,6 +106,20 @@
       (read-from-string input)
       input))
 
+(defun force-list (input)
+  (if (consp input)
+      input
+      (list input)))
+
+(defun get-func-from-hash (inputs)
+  (elt (elt (gethash (elt inputs 0) function-info) 0) 0))
+
+(defun get-format-from-hash (inputs)
+  (elt (elt (gethash (elt inputs 0) function-info) 2) 0))
+
+(defun apply-hash-func-to-inputs (inputs)
+  (apply (get-func-from-hash inputs) (subseq inputs 1)))
+
 (defun eye-diagnostics (&rest argv)
   "CLI for determining eye parameters. Always prints help information."
   (princ methods-str)
@@ -112,17 +127,12 @@
       (format t "~%^ Use [more] args ^~%")
       (let* ((inputs (mapcar #'read-from-string-iff-string argv))
              (chosen-option (elt method-strings (- (elt inputs 0) 1)))
-             (input-string (format nil "~a~13,,,'_:@<~a~>*~{~16,,,'_:@<~s~>*~}~%" "Inputs:" (elt inputs 0) (subseq inputs 1))))
-        (case (elt inputs 0)
-          (0 nil)
-          ((1 2 3 4 5 6 7) (format t "~%~a: ~a~%~a~%" (elt inputs 0) chosen-option input-string))
-          (t nil))
-        (case (elt inputs 0)
-          (0 nil)
-          (1 (format t "Full Prescription: ~a Diopters~%" (apply #'acuity->diopters (subseq inputs 1))))
-          (2 (format t "Full Prescription: ~a Diopters~%" (apply #'first-blur (subseq inputs 1))))
-          (3 (apply (lambda (x y z) (format t "Astigmatism: ~4,2f  Total: ~4,2f  Spherical: ~4,2f Diopters~%" x y z)) (apply #'get-astig-tot-sph (subseq inputs 1))))
-          (4 (format t "Proper Viewing Distance: ~a m~%" (apply #'proper-distance (subseq inputs 1))))
-          (5 (format t "Proper Lenses: ~a Diopters~%" (apply #'proper-lens (subseq inputs 1))))
-          (6 (format t "Correction Delta: ~a Diopters~%" (apply #'correction-delta (subseq inputs 1))))
-	  (7 (format t "Converted Distance: ~a ~a~%" (apply #'convert-units (subseq inputs 1)) (elt inputs 3)))))))
+             (input-string (format nil "~a~13,,,'_:@<~a~>*~{~16,,,'_:@<~s~>*~}~%" "Inputs:"
+				   (elt inputs 0)
+				   (subseq inputs 1))))
+	(format t "~%~a: ~a~%~a~%"
+		(elt inputs 0)
+		chosen-option
+		input-string)
+	(apply (get-format-from-hash inputs)
+	       (force-list (apply-hash-func-to-inputs inputs))))))
