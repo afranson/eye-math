@@ -31,7 +31,12 @@ exec ros -Q -- $0 "$@"
 ```
 ; just make the file executable (after installing roswell of course) and you'll be able to access this functionality from the command line.
 
-Alternatively, you can add to your ASDF source directory (wherever you configured it to be) and use ```(asdf:load-system :eye-math)``` in your favority REPL environment.
+Alternatively, you can build the package as an executable with a compatible Lisp distribution (I use SBCL). To do that, run a REPL and save the ```eye-diagnostics-exec``` function as the entry point:
+```
+> sbcl
+> (asdf:load-system :eye-math)
+> (sb-ext:save-lisp-and-die "exec-name" :toplevel #'eye-matheye-diagnostics-exec :executable T :compression T)  # SBCL version
+```
 
 ## License
 
