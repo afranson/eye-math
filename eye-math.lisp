@@ -14,6 +14,12 @@
 (setf (gethash :in conversions) 0.0254)
 (setf (gethash :ft conversions) 0.3048)
 
+(defun check-for-num (arg)
+  (if (numberp arg)
+      arg
+      (progn (format t "Invalid entry, '~a' should be a number. Defaulting to 1.~%" arg)
+	     1)))
+
 (defun get-conversion (unit)
   (let ((conv (gethash unit conversions)))
     (if conv
@@ -38,52 +44,70 @@
    list))
 
 
-(defun first-blur (distance &optional (unit :in) &rest trash)
-  "Return the diopter value if distance is the first time blur is observed"
-  (declare (ignore trash))
-  (/ 1 (get-conversion unit) distance))
+(defmacro with-num-protection ((&rest var-names) &body body)
+  (labels ((map-tree (f tree)
+	     (when tree
+	       (if (atom tree)
+		   (funcall f tree)
+		   (if (eq (car tree) 'defun) ;; if on the defun line, skip straight to body
+		       (apply #'list (car tree) (cadr tree) (caddr tree) (map-tree f (cdddr tree)))
+		       (if (nthcdr 1 tree)
+			   (apply #'list (map-tree f (car tree)) (map-tree f (cdr tree)))
+			   (list (map-tree f (car tree)))))))))
+    `,(map-tree #'(lambda (x) (if (member x var-names) `(check-for-num ,x) x)) (elt body 0))))
 
 
-(defun acuity->diopters (read-distance &optional (read-size-20/x 20) (chart-distance 14) (lenses 0) (unit :in) &rest trash)
-  "Return the diopter value if read-distance is the first point that the text at read-size-20/x (20/20 or 20/30 for example) is readable"
-  (declare (ignore trash))
-  (let ((effective-acuity (* read-size-20/x chart-distance (/ read-distance))))
-    (when (not (<= 15 effective-acuity 50))
-      (format t "Warning: Unreliable acuity extrapolation, 20/~D~%" (floor effective-acuity)))
-    (+ (abs lenses)
-       (- (interpolate-from-list *acuity->diopter-list* effective-acuity))
-       (first-blur read-distance unit))))
+
+(with-num-protection (distance)
+  (defun first-blur (distance &optional (unit :in) &rest trash)
+    "Return the diopter value if distance is the first time blur is observed"
+    (declare (ignore trash))
+    (/ 1 (get-conversion unit) distance)))
+
+(with-num-protection (read-distance read-size-20/x chart-distance lenses)
+ (defun acuity->diopters (read-distance &optional (read-size-20/x 20) (chart-distance 14) (lenses 0) (unit :in) &rest trash)
+   "Return the diopter value if read-distance is the first point that the text at read-size-20/x (20/20 or 20/30 for example) is readable"
+   (declare (ignore trash))
+   (let ((effective-acuity (* read-size-20/x chart-distance (/ read-distance))))
+     (when (not (<= 15 effective-acuity 50))
+       (format t "Warning: Unreliable acuity extrapolation, 20/~D~%" (floor effective-acuity)))
+     (+ (abs lenses)
+	(- (interpolate-from-list *acuity->diopter-list* effective-acuity))
+	(first-blur read-distance unit)))))
+
+(with-num-protection (full-prescription lenses)
+ (defun proper-distance (full-prescription &optional (lenses 0) (unit :m) &rest trash)
+   "Returns the max viewing distance for clear vision given a full-prescription and current worn lenses"
+   (declare (ignore trash))
+   (list (/ 1 (- full-prescription lenses) (get-conversion unit)) unit)))
 
 
-(defun proper-distance (full-prescription &optional (lenses 0) (unit :m) &rest trash)
-  "Returns the max viewing distance for clear vision given a full-prescription and current worn lenses"
-  (declare (ignore trash))
-  (list (/ 1 (- full-prescription lenses) (get-conversion unit)) unit))
+(with-num-protection (full-prescription distance)
+ (defun proper-lens (full-prescription &optional (distance 1) (unit :m) &rest trash)
+   "Returns the proper diopter value lens that should be worn to clearly see something distance away"
+   (declare (ignore trash))
+   (- full-prescription (/ 1 (get-conversion unit) distance))))
 
 
-(defun proper-lens (full-prescription &optional (distance 1) (unit :m) &rest trash)
-  "Returns the proper diopter value lens that should be worn to clearly see something distance away"
-  (declare (ignore trash))
-  (- full-prescription (/ 1 (get-conversion unit) distance)))
+(with-num-protection (full-prescription lenses distance)
+  (defun correction-delta (full-prescription &optional (lenses 0) (distance 1) (unit :m) &rest trash)
+    "Give the diopter gap between the appropriate perscription to view something distance away with full-prescription vs the lenses currently worn"
+    (declare (ignore trash))
+    (- (proper-lens full-prescription distance unit) lenses)))
 
 
-(defun correction-delta (full-prescription &optional (lenses 0) (distance 1) (unit :m) &rest trash)
-  "Give the diopter gap between the appropriate perscription to view something distance away with full-prescription vs the lenses currently worn"
-  (declare (ignore trash))
-  (- (proper-lens full-prescription distance unit) lenses))
+(with-num-protection (total-first-to-blur-distance 20/20-acuity-distance)
+ (defun get-astig-tot-sph (total-first-to-blur-distance &optional (20/20-acuity-distance 9.75))
+   "Returns the astigmatism, total correction (astig + sph), and spherical correction in diopters given a total-first-to-blur-distance along the hard axis (the astigmatism direction, and a 20/20-acuity-distance (the furthest distance 20/20 is readable from on a 14 in Snellen chart with no correction"
+   (let ((sph (acuity->diopters 20/20-acuity-distance))
+	 (tot (first-blur total-first-to-blur-distance)))
+     (list (- tot sph) tot sph))))
 
-
-(defun get-astig-tot-sph (total-first-to-blur-distance &optional (20/20-acuity-distance 9.75))
-  "Returns the astigmatism, total correction (astig + sph), and spherical correction in diopters given a total-first-to-blur-distance along the hard axis (the astigmatism direction, and a 20/20-acuity-distance (the furthest distance 20/20 is readable from on a 14 in Snellen chart with no correction"
-  (let ((sph (acuity->diopters 20/20-acuity-distance))
-	(tot (first-blur total-first-to-blur-distance)))
-    (list (- tot sph) tot sph)))
-
-
-(defun convert-units (distance &optional (unit-from :m) (unit-to :in) &rest trash)
-  "Converts between units using the conversions hash table. Does meters, inches, feet, and centimeters."
-  (declare (ignore trash))
-  (list (/ (* distance (get-conversion unit-from)) (get-conversion unit-to)) unit-to))
+(with-num-protection (distance)
+ (defun convert-units (distance &optional (unit-from :m) (unit-to :in) &rest trash)
+   "Converts between units using the conversions hash table. Does meters, inches, feet, and centimeters."
+   (declare (ignore trash))
+   (list (/ (* distance (get-conversion unit-from)) (get-conversion unit-to)) unit-to)))
 
 
 
