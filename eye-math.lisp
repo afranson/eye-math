@@ -127,7 +127,7 @@
       (format t "~%^ Use [more] args ^~%")
       (let* ((inputs (mapcar #'read-from-string-iff-string argv))
              (chosen-option (elt method-strings (- (elt inputs 0) 1)))
-             (input-string (format nil "~a~13,,,'_:@<~a~>*~{~16,,,'_:@<~s~>*~}~%" "Inputs:"
+             (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
 				   (elt inputs 0)
 				   (subseq inputs 1))))
 	(format t "~%~a: ~a~%~a~%"
@@ -136,3 +136,22 @@
 		input-string)
 	(apply (get-format-from-hash inputs)
 	       (force-list (apply-hash-func-to-inputs inputs))))))
+
+
+(defun eye-diagnostics-exec ()
+  "CLI for determining eye parameters. Always prints help information."
+  (let ((argv (uiop:command-line-arguments)))
+    (princ methods-str)
+    (if (not (nthcdr 1 argv))
+	(format t "~%^ Use [more] args ^~%")
+	(let* ((inputs (mapcar #'read-from-string-iff-string argv))
+	       (chosen-option (elt method-strings (- (elt inputs 0) 1)))
+	       (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
+				     (elt inputs 0)
+				     (subseq inputs 1))))
+	  (format t "~%~a: ~a~%~a~%"
+		  (elt inputs 0)
+		  chosen-option
+		  input-string)
+	  (apply (get-format-from-hash inputs)
+		 (force-list (apply-hash-func-to-inputs inputs)))))))
