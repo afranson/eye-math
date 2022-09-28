@@ -162,19 +162,20 @@
 (defun eye-diagnostics (&rest argv)
   "CLI for determining eye parameters. Always prints help information."
   (princ methods-str)
-  (if (not (nthcdr 1 argv))
+  (if (not argv) ;; no arguments
       (format t "~%^ Use [more] args ^~%")
       (let* ((inputs (mapcar #'read-from-string-iff-string argv))
-             (chosen-option (elt method-strings (- (elt inputs 0) 1)))
-             (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
+	     (chosen-option (elt method-strings (- (elt inputs 0) 1)))
+	     (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
 				   (elt inputs 0)
 				   (subseq inputs 1))))
 	(format t "~%~a: ~a~%~a~%"
 		(elt inputs 0)
 		chosen-option
 		input-string)
-	(apply (get-format-from-hash inputs)
-	       (force-list (apply-hash-func-to-inputs inputs))))))
+	(when (nthcdr 1 argv) ;; only perform function if args are given
+	  (apply (get-format-from-hash inputs)
+		 (force-list (apply-hash-func-to-inputs inputs)))))))
 
 
 (defun eye-diagnostics-exec ()
