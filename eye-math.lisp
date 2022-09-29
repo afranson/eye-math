@@ -26,37 +26,31 @@
   (let ((conv (gethash unit conversions)))
     (if conv
 	conv
-	(progn (format t "Bad unit was entered '~s'. Use one of :m :cm :in :ft. Defaulting to meters.~%" unit)
+	(progn (format t "Bad unit was entered -> '~s'. Use one of :m :cm :in :ft. Defaulting to ':m', meters.~%" unit)
 	       1))))
 
 (defun interpolate (x1 y1 x2 y2 xm)
-  "Linearly interpolates between point 1 (x1, y1) and point 2 (xy, y2) for some x value xm"
+  "Linearly interpolates between point 1 (x1, y1) and point 2 (xy, y2) to extract ym for some x value xm"
   (let ((slope (/ (- y2 y1) (- x2 x1))))
     (+ y1 (* slope (- xm x1)))))
 
 (defun between (x1 x x2)
   (or (<= x1 x x2) (<= x2 x x1)))
 
-(defun interpolate-from-list (list xm)
-  "Linearly inpolates for the x-value xm by finding the two points in the sorted list that are closest to xm"
+(defun interpolate-from-list (list xm &key (xkey #'first) (ykey #'second))
+  "Linearly inpolates for the x value xm by finding the two points in the sorted list that are closest to xm.
+xkey function extract the x value from the structure, ykey the y value."
   (reduce
    #'(lambda (a b)
        (if (not (consp a))
 	   a
-	   (if (between (elt a 0) xm (elt b 0))
-	       (interpolate (elt a 0) (elt a 1) (elt b 0) (elt b 1) xm)
-	       b)))
-   list))
-
-(defun interpolate-y-from-list (list ym)
-  "Linearly inpolates for the y-value ym by finding the two points in the sorted list that are closest to ym"
-  (reduce
-   #'(lambda (a b)
-       (if (not (consp a))
-	   a
-	   (if (between (elt a 1) ym (elt b 1))
-	       (interpolate (elt a 1) (elt a 0) (elt b 1) (elt b 0) ym)
-	       b)))
+	 (let ((ax (funcall xkey a))
+	       (ay (funcall ykey a))
+	       (bx (funcall xkey b))
+	       (by (funcall ykey b)))
+	  (if (between ax xm bx)
+	      (interpolate ax ay bx by xm)
+	    b))))
    list))
 
 ;; Put around function (like python decorator, but better) - e.g. (with-num-protection (defun ...))
@@ -130,14 +124,14 @@
 (with-num-protection (full-prescription distance lenses)
   (defun diopters->acuity (full-prescription &optional (distance 14) (unit :in) (lenses 0))
     "Converts a reading environment into an expected acuity value"
-    (interpolate-y-from-list *acuity->diopter-list* (- (correction-delta full-prescription lenses distance unit)))))
+    (interpolate-from-list *acuity->diopter-list* (- (correction-delta full-prescription lenses distance unit)) :xkey #'second :ykey #'first)))
 
 
 ;; TODO would be great to just give function name (first field) and have all named parameters looked up automatically and added to the second field
 ;;; CLI Strings, Utilities, and Main function
 (defparameter methods
   `(( (,#'acuity->diopters) ("acuity->diopters" "read-dist" "read-size-20/x" "chart-dist" "lenses" "unit" ) (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
-    ( (,#'diopters->acuity) ("diopters->acuity" "full-prescription" "distance" "unit" "lenses" ) (,(lambda (x) (format t "Reading Acuity: 20/ ~a~%" x))))
+    ( (,#'diopters->acuity) ("diopters->acuity" "full-prescription" "distance" "unit" "lenses" ) (,(lambda (x) (format t "Reading Acuity: 20/~a~%" (round x)))))
     ( (,#'first-blur) ("first-blur" "distance" "unit") (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
     ( (,#'get-astig-tot-sph) ("get-astig-tot-sph" "first-blur-ast" "acuity-read-dist") (,(lambda (x y z) (format t "Astigmatism: ~4,2f  Total: ~4,2f  Spherical: ~4,2f Diopters~%" x y z))))
     ( (,#'proper-distance) ("proper-distance" "full-prescr" "lenses" "unit" ) (,(lambda (x y) (format t "Proper Viewing Distance: ~a ~a~%" x y))))
