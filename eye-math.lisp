@@ -29,29 +29,38 @@
 	(progn (format t "Bad unit was entered -> '~s'. Use one of :m :cm :in :ft. Defaulting to ':m', meters.~%" unit)
 	       1))))
 
-(defun interpolate (x1 y1 x2 y2 xm)
+(defun interpolate-points (p1 p2 xm)
   "Linearly interpolates between point 1 (x1, y1) and point 2 (xy, y2) to extract ym for some x value xm"
-  (let ((slope (/ (- y2 y1) (- x2 x1))))
+  (let* ((x1 (car p1))
+	 (y1 (cadr p1))
+	 (x2 (car p2))
+	 (y2 (cadr p2))
+	 (slope (/ (- y2 y1) (- x2 x1))))
     (+ y1 (* slope (- xm x1)))))
 
-(defun between (x1 x x2)
-  (or (<= x1 x x2) (<= x2 x x1)))
+(defun between-points (p1 x p2 &optional (xkey #'first))
+  (let ((x1 (funcall xkey p1))
+	(x2 (funcall xkey p2)))
+    (or (<= x1 x x2) (<= x2 x x1))))
 
-(defun interpolate-from-list (list xm &key (xkey #'first) (ykey #'second))
-  "Linearly inpolates for the x value xm by finding the two points in the sorted list that are closest to xm.
+(defun interpolate-from-list (list xm &key (pos-keys (list #'first #'second)))
+  "Linearly inpolates for the x value xm by finding the two points in the list that are closest to xm. Use sort-key to determine how the list is sorted (or not).
 xkey function extract the x value from the structure, ykey the y value."
-  (reduce
-   #'(lambda (a b)
-       (if (not (consp a))
-	   a
-	 (let ((ax (funcall xkey a))
-	       (ay (funcall ykey a))
-	       (bx (funcall xkey b))
-	       (by (funcall ykey b)))
-	  (if (between ax xm bx)
-	      (interpolate ax ay bx by xm)
-	    b))))
-   list))
+  (let* ((list (sort (copy-list list) #'< :key (elt pos-keys 0)))
+	 (list (mapcar #'(lambda (x) (list (funcall (elt pos-keys 0) x) (funcall (elt pos-keys 1) x))) list)))
+    ;; list is now forced a be an sorted list of points with x first and y second
+    (if (< xm (caar list))
+	(interpolate-points (car list) (cadr list) xm)
+	(if (> xm (caar (last list)))
+	    (interpolate-points (car (reverse list)) (cadr (reverse list)) xm)
+	    (reduce
+	     #'(lambda (a b)
+		 (if (not (consp a))
+		     a
+		     (if (between-points a xm b)
+			 (interpolate-points a b xm)
+			 b)))
+	     list)))))
 
 ;; Put around function (like python decorator, but better) - e.g. (with-num-protection (defun ...))
 ;; Searches function body for occurance of any element in var-names and replaces it with
@@ -113,7 +122,7 @@ xkey function extract the x value from the structure, ykey the y value."
    "Returns the astigmatism, total correction (astig + sph), and spherical correction in diopters given a total-first-to-blur-distance along the hard axis (the astigmatism direction, and a 20/20-acuity-distance (the furthest distance 20/20 is readable from on a 14 in Snellen chart with no correction"
    (let ((sph (acuity->diopters 20/20-acuity-distance))
 	 (tot (first-blur total-first-to-blur-distance)))
-     (list (- tot sph) tot sph))))
+     (list (/ (+ tot sph) 2) sph (- tot sph))))) ;; center, spherical, astig
 
 (with-num-protection (distance)
  (defun convert-units (distance &optional (unit-from :m) (unit-to :in) &rest trash)
@@ -124,20 +133,26 @@ xkey function extract the x value from the structure, ykey the y value."
 (with-num-protection (full-prescription distance lenses)
   (defun diopters->acuity (full-prescription &optional (distance 14) (unit :in) (lenses 0))
     "Converts a reading environment into an expected acuity value"
-    (interpolate-from-list *acuity->diopter-list* (- (correction-delta full-prescription lenses distance unit)) :xkey #'second :ykey #'first)))
+    (interpolate-from-list *acuity->diopter-list* (- (correction-delta full-prescription lenses distance unit)) :pos-keys (list #'second #'first))))
+
+(with-num-protection (lenses full-prescription optical-range)
+  (defun nearest-safe-dist (lenses &optional (full-prescription 4.75) (unit :cm) (optical-range 6))
+    (list (/ 1 (+ (- lenses) full-prescription optical-range) (get-conversion unit))
+	  unit)))
 
 
 ;; TODO would be great to just give function name (first field) and have all named parameters looked up automatically and added to the second field
 ;;; CLI Strings, Utilities, and Main function
 (defparameter methods
-  `(( (,#'acuity->diopters) ("acuity->diopters" "read-dist" "read-size-20/x" "chart-dist" "lenses" "unit" ) (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
-    ( (,#'diopters->acuity) ("diopters->acuity" "full-prescription" "distance" "unit" "lenses" ) (,(lambda (x) (format t "Reading Acuity: 20/~a~%" (round x)))))
-    ( (,#'first-blur) ("first-blur" "distance" "unit") (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
-    ( (,#'get-astig-tot-sph) ("get-astig-tot-sph" "first-blur-ast" "acuity-read-dist") (,(lambda (x y z) (format t "Astigmatism: ~4,2f  Total: ~4,2f  Spherical: ~4,2f Diopters~%" x y z))))
-    ( (,#'proper-distance) ("proper-distance" "full-prescr" "lenses" "unit" ) (,(lambda (x y) (format t "Proper Viewing Distance: ~a ~a~%" x y))))
-    ( (,#'proper-lens) ("proper-lens" "full-prescr" "dist" "unit" ) (,(lambda (x) (format t "Proper Lenses: ~a Diopters~%" x))))
-    ( (,#'correction-delta) ("correction-delta" "full-prescr" "lenses" "dist" "unit" ) (,(lambda (x) (format t "Correction Delta: ~a Diopters~%" x))))
-    ( (,#'convert-units) ("convert-units" "distance" "unit-from" "unit-to") (,(lambda (x y) (format t "Converted Distance: ~a ~a~%" x y)))))
+  `(( (,#'acuity->diopters)  ("acuity->diopters" "read-dist" "read-size-20/x" "chart-dist" "lenses" "unit" ) (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
+    ( (,#'diopters->acuity)  ("diopters->acuity" "full-prescription" "distance" "unit" "lenses" )            (,(lambda (x) (format t "Reading Acuity: 20/~a~%" (round x)))))
+    ( (,#'first-blur)        ("first-blur" "distance" "unit")                                                (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
+    ( (,#'get-astig-tot-sph) ("get-astig-tot-sph" "first-blur-ast" "acuity-read-dist")                       (,(lambda (x y z) (format t "Center: ~4,2f  Spherical: ~4,2f  Astigmatism: ~4,2f Diopters~%" x y z))))
+    ( (,#'proper-distance)   ("proper-distance" "full-prescr" "lenses" "unit" )                              (,(lambda (x y) (format t "Proper Viewing Distance: ~a ~a~%" x y))))
+    ( (,#'nearest-safe-dist) ("nearest-safe-dist" "lenses" "full-prescription" "unit" "optical-range")       (,(lambda (x y) (format t "Minimum usable distance: ~a ~a~%" x y))))
+    ( (,#'proper-lens)       ("proper-lens" "full-prescr" "dist" "unit" )                                    (,(lambda (x) (format t "Proper Lenses: ~a Diopters~%" x))))
+    ( (,#'correction-delta)  ("correction-delta" "full-prescr" "lenses" "dist" "unit" )                      (,(lambda (x) (format t "Correction Delta: ~a Diopters~%" x))))
+    ( (,#'convert-units)     ("convert-units" "distance" "unit-from" "unit-to")                              (,(lambda (x y) (format t "Converted Distance: ~a ~a~%" x y)))))
   "List that couples the functions to their parameters to their printing format")
 
 (defparameter function-info (make-hash-table) "Hash table relating function names to their information and formats")
