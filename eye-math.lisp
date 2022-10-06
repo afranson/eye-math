@@ -118,11 +118,11 @@ xkey function extract the x value from the structure, ykey the y value."
 
 
 (with-num-protection (total-first-to-blur-distance 20/20-acuity-distance)
- (defun get-astig-tot-sph (total-first-to-blur-distance &optional (20/20-acuity-distance 9.75))
+ (defun get-all (total-first-to-blur-distance &optional (20/20-acuity-distance 9.75))
    "Returns the astigmatism, total correction (astig + sph), and spherical correction in diopters given a total-first-to-blur-distance along the hard axis (the astigmatism direction, and a 20/20-acuity-distance (the furthest distance 20/20 is readable from on a 14 in Snellen chart with no correction"
    (let ((sph (acuity->diopters 20/20-acuity-distance))
 	 (tot (first-blur total-first-to-blur-distance)))
-     (list (/ (+ tot sph) 2) sph (- tot sph))))) ;; center, spherical, astig
+     (list tot (/ (+ tot sph) 2) sph (- tot sph))))) ;; total, center, spherical, astig
 
 (with-num-protection (distance)
  (defun convert-units (distance &optional (unit-from :m) (unit-to :in) &rest trash)
@@ -147,7 +147,7 @@ xkey function extract the x value from the structure, ykey the y value."
   `(( (,#'acuity->diopters)  ("acuity->diopters" "read-dist" "read-size-20/x" "chart-dist" "lenses" "unit" ) (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
     ( (,#'diopters->acuity)  ("diopters->acuity" "full-prescription" "distance" "unit" "lenses" )            (,(lambda (x) (format t "Reading Acuity: 20/~a~%" (round x)))))
     ( (,#'first-blur)        ("first-blur" "distance" "unit")                                                (,(lambda (x) (format t "Full Prescription: ~a Diopters~%" x))))
-    ( (,#'get-astig-tot-sph) ("get-astig-tot-sph" "first-blur-ast" "acuity-read-dist")                       (,(lambda (x y z) (format t "Center: ~4,2f  Spherical: ~4,2f  Astigmatism: ~4,2f Diopters~%" x y z))))
+    ( (,#'get-all) ("get-all" "first-blur-ast" "acuity-read-dist")                       (,(lambda (x y z a) (format t "Total: ~4,2f  Center: ~4,2f  Spherical: ~4,2f  Astigmatism: ~4,2f Diopters~%" x y z a))))
     ( (,#'proper-distance)   ("proper-distance" "full-prescr" "lenses" "unit" )                              (,(lambda (x y) (format t "Proper Viewing Distance: ~a ~a~%" x y))))
     ( (,#'nearest-safe-dist) ("nearest-safe-dist" "lenses" "full-prescription" "unit" "optical-range")       (,(lambda (x y) (format t "Minimum usable distance: ~a ~a~%" x y))))
     ( (,#'proper-lens)       ("proper-lens" "full-prescr" "dist" "unit" )                                    (,(lambda (x) (format t "Proper Lenses: ~a Diopters~%" x))))
@@ -202,8 +202,10 @@ xkey function extract the x value from the structure, ykey the y value."
 		chosen-option
 		input-string)
 	(when (nthcdr 1 argv) ;; only perform function if args are given
+	  (format t "~60,,,'-a~%" "")
 	  (apply (get-format-from-hash inputs)
-		 (force-list (apply-hash-func-to-inputs inputs)))))))
+		 (force-list (apply-hash-func-to-inputs inputs)))
+	  (format t "~60,,,'-a~%" "")))))
 
 
 ;; TODO Create abort handler to prevent errors dumping users into lisp debugger
