@@ -187,13 +187,19 @@ xkey function extract the x value from the structure, ykey the y value."
 
 
 ;;; CLI Strings, Utilities, and Main function
-(defparameter function-info (make-hash-table) "Hash table relating function names to their information and formats")
-(mapcar #'(lambda (x) (setf (gethash x function-info) (elt methods (- x 1)))) (loop for x from 1 to (length methods) collect x))
+(defparameter *function-info* (make-hash-table) "Hash table relating function names to their information and formats")
+(mapcar #'(lambda (x) (setf (gethash x *function-info*) (elt methods (- x 1)))) (loop for x from 1 to (length methods) collect x))
 
-(defparameter method-strings (mapcar #'(lambda (x) (format nil "~{~17a~^ ~}" (elt (gethash x function-info) 1))) (loop for x from 1 to (length methods) collect x)))
-(defparameter methods-str (format nil "~{~a~^~%~}~%" (loop for l in method-strings
-                                                           for y from 1
-                                                           collect (format nil "~a: ~a" y l))))
+
+(defun get-method-strings (methods)
+  (mapcar #'(lambda (x)
+	      (format nil "~{~17a~^ ~}" (elt (gethash x *function-info*) 1)))
+	  (loop for x from 1 to (length methods) collect x)))
+
+(defun get-methods-str (methods)
+  (format nil "~{~a~^~%~}~%" (loop for l in (get-method-strings methods)
+				   for y from 1
+				   collect (format nil "~a: ~a" y l))))
 
 (defun read-from-string-iff-string (input)
   "Read value in string with parser if and only if it is a string"
@@ -221,11 +227,11 @@ xkey function extract the x value from the structure, ykey the y value."
 
 (defun eye-diagnostics (&rest argv)
   "CLI for determining eye parameters. Always prints help information."
-  (princ methods-str)
+  (princ (get-methods-str methods))
   (if (not argv) ;; no arguments
       (format t "~%^ Use [more] args ^~%")
       (let* ((inputs (mapcar #'read-from-string-iff-string argv))
-	     (chosen-option (elt method-strings (- (elt inputs 0) 1)))
+	     (chosen-option (elt (get-method-strings methods) (- (elt inputs 0) 1)))
 	     (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
 				   (elt inputs 0)
 				   (subseq inputs 1))))
