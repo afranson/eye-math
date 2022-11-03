@@ -2,6 +2,7 @@
 
 (in-package #:eye-math)
 
+;;; Eye math foundational objects/functions
 (defparameter *acuity->diopter-list* '((0 1) (10 0.75) (13 0.5) (15 0.25) (20 0)
 				       (25 -0.25) (30 -0.5) (40 -0.75) (50 -1)
 				       (70 -1.25) (100 -1.50) (150 -2.0)
@@ -13,6 +14,12 @@
 (setf (gethash :cm conversions) 0.01)
 (setf (gethash :in conversions) 0.0254)
 (setf (gethash :ft conversions) 0.3048)
+
+(defun range (n)
+  (assert (> n 0) (n))
+  (do ((m 0 (1+ m))
+       (ret-list nil (cons m ret-list)))
+      ((= n m) (reverse ret-list))))
 
 (defun check-for-num (arg)
   "Checks if arg is a number, otherwise print helpful message and gives safe default"
@@ -62,26 +69,13 @@ xkey function extract the x value from the structure, ykey the y value."
 			 b)))
 	     list)))))
 
-;; Put around function (like python decorator, but better) - e.g. (with-num-protection (defun ...))
-;; Searches function body for occurance of any element in var-names and replaces it with
-;; (check-for-num element) so if the argument is not a number, function fails gracefully
-;; (defmacro with-num-protection ((&rest var-names) &body body)
-;;   (labels ((map-tree (f tree)
-;; 	     (when tree
-;; 	       (if (atom tree)
-;; 		   (funcall f tree)
-;; 		   (if (eq (car tree) 'defun) ;; if on the defun line, skip straight to body
-;; 		       (apply #'list (car tree) (cadr tree) (caddr tree) (map-tree f (cdddr tree)))
-;; 		       (if (nthcdr 1 tree)
-;; 			   (apply #'list (map-tree f (car tree)) (map-tree f (cdr tree)))
-;; 			   (list (map-tree f (car tree)))))))))
-;;     `,(map-tree #'(lambda (x) (if (member x var-names) `(check-for-num ,x) x)) (elt body 0))))
 
 
-
+;;; The mathematical relations that do the work as well as the table to store for easy reference
 (defparameter *full-methods* nil "Lookup table for function, parameters, and formatting output")
 
 (defmacro defeyefun (name lambda-list must-be-nums format-style &body body)
+  "Generates the function described in 'body' and uses 'check-for-num' function to verify the status of the 'must-be-num' var names. Then adds the (function args format-style) list to the *full-methods* global var for later use."
   (labels ((check-for-doc-and-declare (body)
 	     (cond ((and (stringp (car body)) (eq (caadr body) 'declare)) 2)
 		   ((and (stringp (car body)) (not (eq (caadr body) 'declare))) 1)
@@ -170,33 +164,21 @@ xkey function extract the x value from the structure, ykey the y value."
   (list (/ 1 (+ (- lenses) full-prescription optical-range) (get-conversion unit))
 	unit))
 
+;;; CLI Strings, Utilities, and Main function
 (defun make-methods (funcs)
+  "Specify the functions you want in methods and in what order you want them as (list #'func1 #'func2 ...)" 
   (mapcar #'(lambda (x)
 	      (find x *full-methods* :test #'(lambda (y z) (eq y (car z)))))
 	  funcs))
 
-(defparameter methods (make-methods (list #'acuity->diopters
-					  #'diopters->acuity
-					  #'first-blur
-					  #'get-all
-					  #'proper-distance
-					  #'nearest-safe-dist
-					  #'proper-lens
-					  #'correction-delta
-					  #'convert-units)))
-
-
-;;; CLI Strings, Utilities, and Main function
-(defparameter *function-info* (make-hash-table) "Hash table relating function names to their information and formats")
-(mapcar #'(lambda (x) (setf (gethash x *function-info*) (elt methods (- x 1)))) (loop for x from 1 to (length methods) collect x))
-
-
 (defun get-method-strings (methods)
+  "Get and format all the arg strings from the methods as made with 'make-methods'"
   (mapcar #'(lambda (x)
-	      (format nil "~{~17a~^ ~}" (elt (gethash x *function-info*) 1)))
-	  (loop for x from 1 to (length methods) collect x)))
+	      (format nil "~{~17a~^ ~}" (elt (elt methods x) 1)))
+	  (range (length methods))))
 
 (defun get-methods-str (methods)
+  "Create a single string of the args for functions in methods as made by 'make-methods'"
   (format nil "~{~a~^~%~}~%" (loop for l in (get-method-strings methods)
 				   for y from 1
 				   collect (format nil "~a: ~a" y l))))
@@ -213,37 +195,46 @@ xkey function extract the x value from the structure, ykey the y value."
       input
       (list input)))
 
-(defun get-func-from-hash (inputs)
+(defun get-func-from-methods (methods inputs)
   "Extract the function from the function-info hash table (specified by 0th element of inputs)"
-  (elt (gethash (elt inputs 0) function-info) 0))
+  (elt (elt methods (1- (elt inputs 0))) 0))
 
-(defun get-format-from-hash (inputs)
+(defun get-format-from-methods (methods inputs)
   "Extract the format for printing the result of the function in the function-info hash table (specified by 0th element of inputs)"
-  (elt (gethash (elt inputs 0) function-info) 2))
+  (elt (elt methods (1- (elt inputs 0))) 2))
 
-(defun apply-hash-func-to-inputs (inputs)
+(defun apply-func-to-inputs (methods inputs)
   "Get result of the function in hash table applied to the inputs (1st to last)"
-  (apply (get-func-from-hash inputs) (subseq inputs 1)))
+  (apply (get-func-from-methods methods inputs) (subseq inputs 1)))
 
 (defun eye-diagnostics (&rest argv)
   "CLI for determining eye parameters. Always prints help information."
-  (princ (get-methods-str methods))
+  (let ((methods (make-methods (list #'acuity->diopters
+				     #'diopters->acuity
+				     #'first-blur
+				     #'get-all
+				     #'proper-distance
+				     #'nearest-safe-dist
+				     #'proper-lens
+				     #'correction-delta
+				     #'convert-units))))
+    (princ (get-methods-str methods)))
   (if (not argv) ;; no arguments
       (format t "~%^ Use [more] args ^~%")
-      (let* ((inputs (mapcar #'read-from-string-iff-string argv))
-	     (chosen-option (elt (get-method-strings methods) (- (elt inputs 0) 1)))
-	     (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
-				   (elt inputs 0)
-				   (subseq inputs 1))))
-	(format t "~%~a: ~a~%~a~%"
-		(elt inputs 0)
-		chosen-option
-		input-string)
-	(when (nthcdr 1 argv) ;; only perform function if args are given
-	  (format t "~60,,,'-a~%" "")
-	  (apply (get-format-from-hash inputs)
-		 (force-list (apply-hash-func-to-inputs inputs)))
-	  (format t "~60,,,'-a~%" "")))))
+    (let* ((inputs (mapcar #'read-from-string-iff-string argv))
+	   (chosen-option (elt (get-method-strings methods) (- (elt inputs 0) 1)))
+	   (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
+				 (elt inputs 0)
+				 (subseq inputs 1))))
+      (format t "~%~a: ~a~%~a~%"
+	      (elt inputs 0)
+	      chosen-option
+	      input-string)
+      (when (nthcdr 1 argv) ;; only perform function if args are given
+	(format t "~60,,,'-a~%" "")
+	(apply (get-format-from-methods methods inputs)
+	       (force-list (apply-func-to-inputs methods inputs)))
+	(format t "~60,,,'-a~%" "")))))
 
 
 ;; TODO Create abort handler to prevent errors dumping users into lisp debugger
