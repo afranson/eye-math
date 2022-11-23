@@ -92,15 +92,16 @@ xkey function extract the x value from the structure, ykey the y value."
 	 ,@(append (subseq body 0 (check-for-doc-and-declare body))
 		   (list `(let ,(mapcar #'(lambda (y) `(,y (check-for-num ,y))) must-be-nums)
 			    ,@(subseq body (check-for-doc-and-declare body))))))
-       (push (list #',name (list ,(sb-unicode:lowercase (symbol-name name)) ,@(mapcan #'lambda-to-arg-names lambda-list)) ,format-style) *full-methods*))))
+       (push (list #',name (list ,(sb-unicode:lowercase (symbol-name name)) ,@(mapcan #'lambda-to-arg-names lambda-list)) ,format-style) *full-methods*)
+       (export ',name))))
 
 
-(defeyefun first-blur (distance &optional (unit :in) &rest trash)
-    (distance)
+(defeyefun first-blur (distance &optional (unit :in) (lens 0) &rest trash)
+    (distance lens)
     (lambda (x) (format t "Full Prescription: ~a Diopters~%" x))
   "Return the diopter value if distance is the first time blur is observed"
   (declare (ignore trash))
-  (/ 1 (get-conversion unit) distance))
+  (+ lens (/ 1 (get-conversion unit) distance)))
 
 (defeyefun acuity->diopters (read-distance &optional (read-size-20/x 20) (chart-distance 14) (lenses 0) (unit :in) &rest trash)
     (read-distance read-size-20/x chart-distance lenses)
@@ -195,6 +196,7 @@ xkey function extract the x value from the structure, ykey the y value."
       input
       (list input)))
 
+; 1- is so that user inputs are cardinal based rather and ordinal based
 (defun get-func-from-methods (methods inputs)
   "Extract the function from the function-info hash table (specified by 0th element of inputs)"
   (elt (elt methods (1- (elt inputs 0))) 0))
@@ -218,23 +220,23 @@ xkey function extract the x value from the structure, ykey the y value."
 				     #'proper-lens
 				     #'correction-delta
 				     #'convert-units))))
-    (princ (get-methods-str methods)))
-  (if (not argv) ;; no arguments
-      (format t "~%^ Use [more] args ^~%")
-    (let* ((inputs (mapcar #'read-from-string-iff-string argv))
-	   (chosen-option (elt (get-method-strings methods) (- (elt inputs 0) 1)))
-	   (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
-				 (elt inputs 0)
-				 (subseq inputs 1))))
-      (format t "~%~a: ~a~%~a~%"
-	      (elt inputs 0)
-	      chosen-option
-	      input-string)
-      (when (nthcdr 1 argv) ;; only perform function if args are given
-	(format t "~60,,,'-a~%" "")
-	(apply (get-format-from-methods methods inputs)
-	       (force-list (apply-func-to-inputs methods inputs)))
-	(format t "~60,,,'-a~%" "")))))
+    (princ (get-methods-str methods))
+    (if (not argv) ;; no arguments
+	(format t "~%^ Use [more] args ^~%")
+	(let* ((inputs (mapcar #'read-from-string-iff-string argv))
+	       (chosen-option (elt (get-method-strings methods) (- (elt inputs 0) 1)))
+	       (input-string (format nil "~a~14,,,'_:@<~a~>*~{~17,,,'_:@<~s~>*~}~%" "Inputs:"
+				     (elt inputs 0)
+				     (subseq inputs 1))))
+	  (format t "~%~a: ~a~%~a~%"
+		  (elt inputs 0)
+		  chosen-option
+		  input-string)
+	  (when (nthcdr 1 argv) ;; only perform function if args are given
+	    (format t "~60,,,'-a~%" "")
+	    (apply (get-format-from-methods methods inputs)
+		   (force-list (apply-func-to-inputs methods inputs)))
+	    (format t "~60,,,'-a~%" ""))))))
 
 
 ;; TODO Create abort handler to prevent errors dumping users into lisp debugger
