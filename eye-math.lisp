@@ -76,25 +76,21 @@ xkey function extract the x value from the structure, ykey the y value."
 
 (defmacro defeyefun (name lambda-list must-be-nums format-style &body body)
   "Generates the function described in 'body' and uses 'check-for-num' function to verify the status of the 'must-be-num' var names. Then adds the (function args format-style) list to the *full-methods* global var for later use."
-  (labels ((check-for-doc-and-declare (body)
-	     (cond ((and (stringp (car body)) (eq (caadr body) 'declare)) 2)
-		   ((and (stringp (car body)) (not (eq (caadr body) 'declare))) 1)
-		   ((eq (caar body) 'declare) 1)
-		   (t 0)))
-	   (lambda-to-arg-names (lambda-item)
-	     (if (member lambda-item '(&optional &key &rest trash))
-		 nil
-		 (list (sb-unicode:lowercase (if (consp lambda-item)
-						 (symbol-name (car lambda-item))
-						 (symbol-name lambda-item)))))))
-    `(progn
-       (defun ,name ,lambda-list
-	 ,@(append (subseq body 0 (check-for-doc-and-declare body))
-		   (list `(let ,(mapcar #'(lambda (y) `(,y (check-for-num ,y))) must-be-nums)
-			    ,@(subseq body (check-for-doc-and-declare body))))))
-       (push (list #',name (list ,(sb-unicode:lowercase (symbol-name name)) ,@(mapcan #'lambda-to-arg-names lambda-list)) ,format-style) *full-methods*)
-       (export ',name))))
-
+  (multiple-value-bind (stripped-body dec doc) (alexandria:parse-body body :documentation t)
+   (labels ((lambda-to-arg-names (lambda-item)
+	      (if (member lambda-item '(&optional &key &rest trash))
+		  nil
+		  (list (sb-unicode:lowercase (if (consp lambda-item)
+						  (symbol-name (car lambda-item))
+						  (symbol-name lambda-item)))))))
+     `(progn
+	(defun ,name ,lambda-list
+	  ,doc
+	  ,@dec
+	  ,@(list `(let ,(mapcar #'(lambda (y) `(,y (check-for-num ,y))) must-be-nums)
+			     ,@stripped-body)))
+	(push (list #',name (list ,(sb-unicode:lowercase (symbol-name name)) ,@(mapcan #'lambda-to-arg-names lambda-list)) ,format-style) *full-methods*)
+	(export ',name)))))
 
 (defeyefun first-blur (distance &optional (unit :in) (lens 0) &rest trash)
     (distance lens)
